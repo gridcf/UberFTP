@@ -52,6 +52,9 @@
 
 typedef struct errcode_s * errcode_t;
 
+char *
+ec_get_errmsg(errcode_t errcode);
+
 errcode_t
 ec_create(OM_uint32, OM_uint32, char * fmt, ...);
 

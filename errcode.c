@@ -190,6 +190,11 @@ ec_destroy(errcode_t errcode)
 	return;
 }
 
+char
+*ec_get_errmsg(errcode_t errcode)
+{
+    return (errcode ? *(errcode->errmsg) : "");
+}
 
 void
 ec_print(errcode_t errcode)
