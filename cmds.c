@@ -3530,8 +3530,8 @@ cleanup:
 	if (ecl || ecr || ec)
 		cr = CMD_ERR_GET;
 
-	if (ec  && strncmp(ec_get_errmsg(ec), "550 File exists", 15) == 0 ||
-	    ecr && strncmp(ec_get_errmsg(ecr),"550 File exists", 15) == 0)
+	if (ec  && strncmp(ec_get_errmsg(ec), "550 ", 4) == 0 ||
+	    ecr && strncmp(ec_get_errmsg(ecr),"550 ", 4) == 0)
 	{
 	    delfile=0;
 	}
