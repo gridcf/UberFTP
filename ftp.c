@@ -3447,68 +3447,85 @@ _f_parse_addrs(
 
     /* Now try RFC2428 format */
     strc = strdup(str);
-    if (strc != NULL)
+    if (strc == NULL)
+	/* out of memory. TODO: should give a proper error message */
+	return cnt;
+
+    /* Locate the beginning of the extended address */
+    /* As we have to first locate delimiter, and the format of */
+    /* EPSV and SPAS replies is different, this is somewhat */
+    /* heuristic: find the ext address after the first open */
+    /* parenthesis or newline. */
+    ptr = strchr(strc,'(');
+    if (ptr == NULL)
+	ptr = strchr(strc,'\n');
+
+    /* when ptr isn't NULL at this point ptr[0] is either '(' or '\n' but check
+     * it's not at the end of the input, i.e. ptr[1] != '\0' */
+    if (ptr != NULL && ptr[1] != '\0')
     {
-	/* Locate the beginning of the extended address */
-	/* As we have to first locate delimiter, and the format of */
-	/* EPSV and SPAS replies is different, this is somewhat */
-	/* heuristic: find the ext address after the first open */
-	/* parenthesis or newline. */
-        ptr = strchr(strc,'(');
-	if (ptr == NULL) ptr = strchr(strc,'\n');
-        if (ptr != NULL)
-        {
-            ptr++;
-            while ((*ptr) == ' ' || (*ptr) == '\t' ) ptr++;
-            delim = *ptr;
-            ptr++;
+	/* skip spaces and tabs */
+	do {
+	    ptr++;
+	} while ((*ptr) == ' ' || (*ptr) == '\t' );
+
+	/* delimiter is the first non-space non-tab char after '(' or '\n' */
+	delim = *ptr;
+	if (delim != '\0') { /* make sure delim is not the closing 0-byte */
+	    ptr++;
+	    while (ptr != NULL)
+	    {
+		/* NOTE: token[0] is the protocol, token[1] the IP, token[2] the port */
+		for (n_tokens = 0; n_tokens < 3; n_tokens++)
+		{
+		    token[n_tokens] = ptr;
+		    if ((ptr = strchr(ptr, delim)) == NULL)
+			break;
+		    *ptr = 0;
+		    ptr++;
+		}
+		if (n_tokens == 3) /* is equivalent to ptr!=NULL */
+		{
+		    *sinp = (struct sockaddr_storage *) realloc(
+			 *sinp,
+			 (++cnt)*sizeof(struct sockaddr_storage));
+		    /* TODO: using atoi() on potentially "" is not very clean */
+		    htons_port = htons(atoi(token[2]));
+		    protocol = atoi(token[0]);
+		    switch (protocol)	{
+			case 1:
+			     (*sinp)[cnt-1].ss_family = AF_INET;
+			     inet_pton(AF_INET, token[1],
+				       &(((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_addr));
+			     ((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_port = htons_port;
+			     break;
+			case 2:
+			     (*sinp)[cnt-1].ss_family = AF_INET6;
+			     inet_pton(AF_INET6, token[1],
+				       &(((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_addr));
+			     ((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_port = htons_port;
+			     break;
+			default:
+			    /* No protocol specified */
+			    /* EPSV returns only the 'port' field, so */
+			    /* use the current control connection peer. */
+			    if (fh != NULL)
+				net_getpeername(fh->cc.nh, (struct sockaddr *)(&((*sinp)[cnt-1])), sizeof(struct sockaddr_storage));
+			    if (((*sinp)[cnt-1]).ss_family == AF_INET)
+			       ((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_port = htons_port;
+			    else if (((*sinp)[cnt-1]).ss_family == AF_INET6)
+			       ((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_port = htons_port;
+			    break;
+		    }
+		    /* Note: we can only get here when ptr != NULL after the
+		     * n_tokens for loop, meaning we're directly behind the last
+		     * delimiter we found, i.e. ptr might be equal to "" */
+		    ptr = strchr(ptr, delim);
+		}
+	    }
 	}
-	while (ptr != NULL)
-	{
-            for (n_tokens = 0; n_tokens < 3; n_tokens++)
-            {
-                token[n_tokens] = ptr;
-                if ((ptr = strchr(ptr, delim)) == NULL) break;
-                *ptr = 0;
-                ptr++;
-            }
-            if (n_tokens == 3)
-            {
-                *sinp = (struct sockaddr_storage *) realloc(
-       	             *sinp,
-                     (++cnt)*sizeof(struct sockaddr_storage));
-                protocol = atoi(token[0]);
-                htons_port = htons(atoi(token[2]));
-                if (protocol == 1 || protocol == 2)
-                {
-                    if (protocol == 1)
-                    {
-                         (*sinp)[cnt-1].ss_family = AF_INET;
-                         inet_pton(AF_INET, token[1],
-                                   &(((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_addr));
-                         ((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_port = htons_port;
-                    } else {
-                         (*sinp)[cnt-1].ss_family = AF_INET6;
-                         inet_pton(AF_INET6, token[1],
-                                   &(((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_addr));
-                         ((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_port = htons_port;
-                    }
-                } else {
-                    /* No protocol specified */
-                    /* EPSV returns only the 'port' field, so */
-                    /* use the current control connection peer. */
-                    if (fh != NULL)
-                        net_getpeername(fh->cc.nh, (struct sockaddr *)(&((*sinp)[cnt-1])), sizeof(struct sockaddr_storage));
-                    if (((*sinp)[cnt-1]).ss_family == AF_INET)
-                       ((struct sockaddr_in *)&(*sinp)[cnt-1])->sin_port = htons_port;
-                    else if (((*sinp)[cnt-1]).ss_family == AF_INET6)
-                       ((struct sockaddr_in6 *)&(*sinp)[cnt-1])->sin6_port = htons_port;
-                }
-            }
-            if (ptr != NULL) ptr = strchr(ptr, delim);
-        }
-        free(strc);
     }
+    free(strc);
 
     return cnt;
 }
