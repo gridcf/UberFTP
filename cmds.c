@@ -1384,7 +1384,7 @@ static cmdret_t
 _c_bugs()
 {
 	o_printf(DEBUG_ERRS_ONLY, 
-	    "For feature requests or bug reporting, email gridftp@ncsa.uiuc.edu\n");
+	    "For feature requests or bug reporting, email discuss@gridcf.org\n");
 	return CMD_SUCCESS;
 }
 
